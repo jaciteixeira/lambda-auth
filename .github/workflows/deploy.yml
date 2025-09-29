@@ -15,8 +15,12 @@ jobs:
           aws-region: us-east-1
       - name: Install zip
         run: sudo apt-get install -y zip
+      - name: List repo files
+        run: ls -R
       - name: Package Lambda
-        run: zip -r build/lambda.zip src package.json
+        run: |
+          mkdir -p build
+          zip -r build/lambda.zip src package.json
       - name: Terraform Init
         run: terraform -chdir=terraform init
       - name: Terraform Apply
