@@ -6,7 +6,7 @@ exports.handler = async (event) => {
     if (!cpf) {
         return {
             statusCode: 400,
-            body: JSON.stringify({ message: 'CPF é obrigátorio' })
+            body: JSON.stringify({ message: 'CPF é obrigátorio ' })
         };
     }
 
