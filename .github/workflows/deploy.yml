@@ -19,7 +19,8 @@ jobs:
         run: ls -R
       - name: Package Lambda
         run: |
-          zip -r lambda.zip src package.json
+          mkdir -p build
+          zip -r build/lambda.zip src package.json
       - name: Setup Terraform          # ✅ Instala Terraform
         uses: hashicorp/setup-terraform@v3
         with:
