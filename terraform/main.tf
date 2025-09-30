@@ -8,7 +8,7 @@ resource "aws_lambda_function" "auth" {
   runtime          = "nodejs20.x"
   role             = "arn:aws:iam::065939301012:role/lambda-auth-role"
   filename         = "${path.module}/lambda.zip"
-  source_code_hash = filebase64sha256("${path.module}/../build/lambda.zip")
+  source_code_hash = filebase64sha256("${path.module}/lambda.zip")
 }
 
 resource "aws_api_gateway_rest_api" "API" {
