@@ -2,55 +2,59 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_iam_role" "lambda_exec" {
-  name = "lambda-auth-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
-}
-
 resource "aws_lambda_function" "auth" {
-  function_name = "lambda-auth"
-  handler       = "src/index.handler"
-  runtime       = "nodejs20.x"
-  role          = aws_iam_role.lambda_exec.arn
-  filename      = "${path.module}/../build/lambda.zip"
+  function_name    = "lambda-auth"
+  handler          = "src/index.handler"
+  runtime          = "nodejs20.x"
+  role             = "arn:aws:iam::065939301012:role/lambda-auth-role"
+  filename         = "${path.module}/../lambda.zip"
   source_code_hash = filebase64sha256("${path.module}/../build/lambda.zip")
 }
 
-resource "aws_apigatewayv2_api" "http_api" {
-  name          = "customer-auth-api"
-  protocol_type = "HTTP"
+resource "aws_api_gateway_rest_api" "API" {
+  name = "lambda-api"
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
 }
 
-resource "aws_apigatewayv2_integration" "lambda" {
-  api_id                 = aws_apigatewayv2_api.http_api.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.auth.invoke_arn
-  payload_format_version = "2.0"
+resource "aws_api_gateway_resource" "Resource" {
+  rest_api_id = aws_api_gateway_rest_api.API.id
+  parent_id   = aws_api_gateway_rest_api.API.root_resource_id
+  path_part   = "customer-auth"
 }
 
-resource "aws_apigatewayv2_route" "get_cpf" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /customer-auth"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+resource "aws_api_gateway_method" "Method" {
+  rest_api_id   = aws_api_gateway_rest_api.API.id
+  resource_id   = aws_api_gateway_resource.Resource.id
+  http_method   = "GET"
+  authorization = "NONE"
 }
 
-resource "aws_lambda_permission" "apigw" {
-  statement_id  = "AllowAPIGatewayInvoke"
+resource "aws_api_gateway_integration" "Integration" {
+  rest_api_id             = aws_api_gateway_rest_api.API.id
+  resource_id             = aws_api_gateway_resource.Resource.id
+  http_method             = aws_api_gateway_method.Method.http_method
+  integration_http_method = "POST"              # 👈 sempre POST para Lambda
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.auth.invoke_arn
+}
+
+resource "aws_lambda_permission" "apigw-lambda" {
+  statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.auth.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.API.execution_arn}/*/${aws_api_gateway_method.Method.http_method}${aws_api_gateway_resource.Resource.path}"
 }
 
-output "endpoint" {
-  value = aws_apigatewayv2_api.http_api.api_endpoint
+resource "aws_api_gateway_deployment" "example" {
+  depends_on  = [aws_api_gateway_integration.Integration]
+  rest_api_id = aws_api_gateway_rest_api.API.id
+}
+
+resource "aws_api_gateway_stage" "dev" {
+  deployment_id = aws_api_gateway_deployment.example.id
+  rest_api_id   = aws_api_gateway_rest_api.API.id
+  stage_name    = "dev"
 }

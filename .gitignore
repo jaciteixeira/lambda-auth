@@ -1,0 +1,4 @@
+build/*
+.terraform.lock.hcl
+.terraform/
+lambda.zip
